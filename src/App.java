@@ -25,6 +25,10 @@ public class App {
     static AVL<Integer, Produto> produtosBalanceadosPorId;
     
     static TabelaHash<Produto, Lista<Pedido>> pedidosPorProduto;
+
+    static AVL<Integer,Fornecedor> fornecedorPorDocumento;
+
+    static TabelaHash<Produto, Lista<Fornecedor>> fornecedorPorProduto;
     
     static void limparTela() {
         System.out.print("\033[H\033[2J");
@@ -65,6 +69,8 @@ public class App {
         cabecalho();
         System.out.println("1 - Procurar produto, por id");
         System.out.println("2 - Gravar, em arquivo, pedidos de um produto");
+        System.out.println("3 - Relatório de um fornecedor por documento"); 
+        System.out.println("4 - Relatorio fornecedores de um produto"); 
         System.out.println("0 - Sair");
         System.out.print("Digite sua opção: ");
         return Integer.parseInt(teclado.nextLine());
@@ -108,6 +114,113 @@ public class App {
     	}
     	
     	return produtosCadastrados;
+    }
+
+    static <K> AVL<K, Fornecedor> lerFornecedores(String nomeArquivoDados, Function<Fornecedor, K> extratorDeChave) {
+    	
+    	Scanner arquivo = null;
+    	int nFornecedores;
+    	String nomeFornecedeores;
+    	Fornecedor fornecedor;
+    	AVL<K, Fornecedor> fornecedores;
+    	K chave;
+    	
+    	try {
+    		arquivo = new Scanner(new File(nomeArquivoDados), Charset.forName("UTF-8"));
+    		
+    		nFornecedores = Integer.parseInt(arquivo.nextLine());
+    		fornecedores = new AVL<K, Fornecedor>();
+    		
+    		for (int i = 0; i < nFornecedores; i++) {
+    			nomeFornecedeores = arquivo.nextLine();
+    			fornecedor = new Fornecedor(nomeFornecedeores);
+    			chave = extratorDeChave.apply(fornecedor);
+    			fornecedores.inserir(chave, fornecedor);
+    		}
+    		quantosProdutos = nFornecedores;
+    		
+    	} catch (IOException excecaoArquivo) {
+    		fornecedores = null;
+    	} finally {
+    		arquivo.close();
+    	}
+    	
+    	return fornecedores;
+    }
+
+    static String relatorioDeFornecedor() {
+
+        Integer documentoFornecedor = lerOpcao("Digite o identificador do fornecedor-número: ", Integer.class);
+
+        if (documentoFornecedor == null) {
+            return "Doc inválido.";
+        }
+
+        cabecalho();
+        System.out.println("Localizando fornecedor: " + documentoFornecedor + "...");
+
+        try {
+            Fornecedor fornecedor = fornecedorPorDocumento.pesquisar(documentoFornecedor);
+
+
+            System.out.println("N de comparações: " + fornecedorPorDocumento.getComparacoes());
+            System.out.println("Tempo de processamento da pesquisa: " + fornecedorPorDocumento.getTempo() + " ms");
+
+            return "\n*** Relatorio do fornecedor ***\n" + fornecedor.toString();
+
+        } catch (NoSuchElementException excecao) {
+
+            System.out.println("N de comparações: " + fornecedorPorDocumento.getComparacoes());
+            System.out.println("Tempo de processamento da pesquisa: " + fornecedorPorDocumento.getTempo() + " ms");
+
+            return " erro do fornecedor com documento " + documentoFornecedor + " não encontrado.";
+        }
+    }
+
+
+    
+    static void fornecedoresDoProduto() {
+
+        Produto produto = localizarProdutoID(produtosBalanceadosPorId);
+
+        if (produto == null) {
+            System.out.println("Não encontrado o produto relatório não gerado.");
+            return;
+        }
+
+        Lista<Fornecedor> fornecedores;
+        String nomeArquivo = "FornecedoresDoProduto_" + produto.hashCode() + ".txt";
+
+        System.out.println("Relatório de fornecedores para o produto: " + produto.descricao + "...");
+
+        try {
+
+            fornecedores = fornecedorPorProduto.pesquisar(produto);
+
+
+            try (FileWriter arquivoRelatorio = new FileWriter(nomeArquivo, Charset.forName("UTF-8"))) {
+
+                arquivoRelatorio.append("*** Relatório de fornecedores para o produto ***\n");
+                arquivoRelatorio.append("ID: " + produto.idProduto + "\n");
+                arquivoRelatorio.append("Descrição: " + produto.descricao + "\n");
+                arquivoRelatorio.append("--------------------------------------------------\n");
+
+
+                if (fornecedores.vazia()) {
+                    arquivoRelatorio.append("Nenhum fornecedor cadastrado.\n");
+                } else {
+                    arquivoRelatorio.append(fornecedores.toString() + "\n");
+                }
+
+                System.out.println(" Relatório de fornecedores salvo em **" + nomeArquivo + "**");
+            } catch(IOException excecao) {
+                System.err.println("Problemas para criar/escrever no arquivo " + nomeArquivo + ".");
+            }
+
+        } catch(NoSuchElementException excecao) {
+            System.out.println("Nenhuma lista de fornecedores encontrada para o produto.");
+
+        }
     }
     
     static <K> Produto localizarProduto(ABB<K, Produto> produtosCadastrados, K procurado) {
@@ -230,6 +343,8 @@ public class App {
             switch (opcao) {
             	case 1 -> mostrarProduto(localizarProdutoID(produtosBalanceadosPorId));
             	case 2 -> pedidosDoProduto(); 
+                case 3 -> System.out.println(relatorioDeFornecedor());
+                case 4 -> fornecedoresDoProduto();
             }
             pausa();
         } while(opcao != 0);       
